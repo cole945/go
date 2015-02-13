@@ -95,9 +95,40 @@ adddynrel(LSym *s, Reloc *r)
 int
 elfreloc1(Reloc *r, vlong sectoff)
 {
-	USED(r); USED(sectoff);
-	// TODO(minux)
-	return -1;
+	int32 elfsym;
+	VPUT(sectoff);
+
+	elfsym = r->xsym->elfsym;
+	switch(r->type) {
+	default:
+		return -1;
+
+	case R_ADDR:
+		if(r->siz == 4)
+			LPUT(R_PPC_ADDR32 | (uint64)elfsym<<32);
+		else if (r->siz == 8)
+			LPUT(R_PPC64_ADDR64 | (uint64)elfsym<<32);
+		break;
+
+	case R_ADDRPOWER:
+		if(r->siz == 8) {
+			VPUT(R_PPC_ADDR16_HA | (uint64)elfsym<<32);
+			VPUT(sectoff + 4);
+			VPUT(R_PPC_ADDR16_LO | (uint64)elfsym<<32);
+		} else
+			return -1;
+		break;
+
+	case R_CALLPOWER:
+		if(r->siz == 4) {
+			VPUT(R_PPC_REL24 | (uint64)elfsym<<32);
+		} else
+			return -1;
+		break;
+	}
+
+	return 0;
+
 }
 
 void
@@ -122,11 +153,54 @@ archreloc(Reloc *r, LSym *s, vlong *val)
 {
 	uint32 o1, o2;
 	int32 t;
+	LSym *rs;
+
 
 	if(linkmode == LinkExternal) {
 		// TODO(minux): translate R_ADDRPOWER and R_CALLPOWER into standard ELF relocations.
 		// R_ADDRPOWER corresponds to R_PPC_ADDR16_HA and R_PPC_ADDR16_LO.
 		// R_CALLPOWER corresponds to R_PPC_REL24.
+		switch(r->type) {
+		case R_ADDRPOWER:
+			rs = r->sym;
+			r->xadd = (r->add >> 16) & 0xffff0000;
+			r->xadd |= r->add & 0xffff;
+
+			while(rs->outer != nil) {
+				r->xadd += symaddr(rs) - symaddr(rs->outer);
+				rs = rs->outer;
+			}
+
+			if(rs->type != SHOSTOBJ && rs->sect == nil)
+				diag("missing section for %s", rs->name);
+			r->xsym = rs;
+
+			*val = ((r->add) & 0xffff0000ffff0000)
+				| (r->xadd & 0xffff)
+				| ((r->xadd << 16) & 0xffff00000000);
+			return 0;
+		case R_CALLPOWER:
+			r->done = 0;
+
+			// set up addend for eventual relocation via outer symbol.
+			rs = r->sym;
+			r->xadd = (r->add >> 2) & 0xffffff;
+			if(r->xadd & 0x800000)
+				r->xadd |= ~0xffffff;
+			r->xadd *= 4;
+			while(rs->outer != nil) {
+				r->xadd += symaddr(rs) - symaddr(rs->outer);
+				rs = rs->outer;
+			}
+
+			if(rs->type != SHOSTOBJ && rs->sect == nil)
+				diag("missing section for %s", rs->name);
+			r->xsym = rs;
+
+			*val = braddoff((0xff000000U & (uint32)r->add),
+							((0xffffff << 2) & (uint32)(r->xadd)));
+			return 0;
+		}
 		return -1;
 	}
 	switch(r->type) {

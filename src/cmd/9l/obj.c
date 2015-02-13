@@ -64,6 +64,8 @@ archinit(void)
 		if(linkmode == LinkExternal && strcmp(getgoextlinkenabled(), "1") != 0)
 			sysfatal("cannot use -linkmode=external with -H %s", headstr(HEADTYPE));
 		break;
+	case Hlinux:
+		break;
 	}
 
 	switch(HEADTYPE) {
@@ -80,7 +82,7 @@ archinit(void)
 			INITRND = 4096;
 		break;
 	case Hlinux:	/* power64 elf */
-		debug['d'] = 1;	// TODO(minux): dynamic linking is not supported yet.
+		debug['d'] = 0;	// TODO(minux): dynamic linking is not supported yet.
 		elfinit();
 		HEADR = ELFRESERVE;
 		if(INITTEXT == -1)

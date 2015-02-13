@@ -652,8 +652,8 @@ typedef struct {
 #define	R_PPC_SECTOFF_LO	34
 #define	R_PPC_SECTOFF_HI	35
 #define	R_PPC_SECTOFF_HA	36
-
-#define	R_PPC_COUNT		37	/* Count of defined relocation types. */
+#define R_PPC64_ADDR64		38
+#define	R_PPC_COUNT		39	/* Count of defined relocation types. */
 
 #define R_PPC_TLS		67
 #define R_PPC_DTPMOD32		68
